@@ -1,0 +1,239 @@
+﻿<!--Source: https://github.com/amithegde/d3js-reusable-sparkline -->
+<title>Reusable d3 js Sparkline chart</title>
+<style>
+    .sparkline {
+        fill: none;
+        stroke: #000;
+        stroke-width: 1px;
+    }
+
+    .sparkcircle {
+        fill: #f00;
+        stroke: none;
+    }
+</style>
+<br />
+<span>Original d3 js Sparkline chart, with csv data</span>
+<div id="sparklineChartBlock1" style="margin:15px; height:100px;"></div>
+<br />
+<span>Reusable d3 js Sparkline chart, with json data</span>
+<div id="sparklineChartBlock2" style="margin:15px; height:100px;"></div>
+<br />
+<span><a href="https://github.com/amithegde/d3js-reusable-sparkline" target="_blank">Reusable d3.js sparkline chart</a> uses the same apparoach as mentioned <a target="_blank" href="http://bost.ocks.org/mike/chart/">here</a></span>
+<!--jQuery is used only to make ajax call-->
+<script src="~/Scripts/jquery-1.8.2.js"></script>
+<script src="http://d3js.org/d3.v3.js"></script>
+<script>
+    // original sparkline chart source : http://www.tnoda.com/blog/2013-12-19
+    var width = 100;
+    var height = 25;
+    var x = d3.scale.linear().range([0, width - 2]);
+    var y = d3.scale.linear().range([height - 4, 0]);
+    var parseDate = d3.time.format('%b %d, %Y').parse;
+    var line = d3.svg.line()
+        .interpolate("basis")
+        .x(function (d) { return x(d.date); })
+        .y(function (d) { return y(d.close); });
+
+    function sparkline(elemId, data) {
+        data.forEach(function (d) {
+            d.date = parseDate(d.Date);
+            d.close = +d.Close;
+        });
+
+        x.domain(d3.extent(data, function (d) { return d.date; }));
+        y.domain(d3.extent(data, function (d) { return d.close; }));
+
+        var svg = d3.select(elemId)
+            .append('svg')
+            .attr('width', width)
+            .attr('height', height)
+            .append('g')
+            .attr('transform', 'translate(0, 2)');
+        svg.append('path')
+            .datum(data)
+            .attr('class', 'sparkline')
+            .attr('d', line);
+
+        svg.append('circle')
+            .attr('class', 'sparkcircle')
+            .attr('cx', x(data[0].date))
+            .attr('cy', y(data[0].close))
+            .attr('r', 1.5);
+    }
+
+    d3.csv('/Content/goog.csv', function (error, data) {
+        sparkline('#sparklineChartBlock1', data);
+    });
+</script>
+<script>
+    //pull data using jQuery ajax and render the chart
+    $.ajax({
+        url: '/Home/ChartData',
+        type: 'GET',
+        contentType: 'application/json; charset=utf-8',
+        success: function (data) {
+            d3.select('#sparklineChartBlock2')
+                .datum(data)
+                .call(sparkLineChart()
+                    .x(function (d) { return getUtcDateFromJsonString(d.Date); })
+                    .y(function (d) { return d.Close; })
+                    .width(100)
+                    .height(25)
+                    .margin({ top: 2, right: 1, bottom: 2, left: 1 }));
+        },
+        error: function (xhr) {
+            alert('error while making ajax call')
+        }
+    });
+
+    function sparkLineChart() {
+        ///<summary>function to render chart</summary>
+
+        //default margin
+        var margin = {
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0
+        },
+            //default width
+            width = 300,
+            //default height
+            height = 100,
+
+            //default x-axis value list
+            xValue = function (d) { return d[0]; },
+            //default y-axis value list
+            yValue = function (d) { return d[1]; },
+
+            //x and y scales
+            xScale = d3.scale.linear(),
+            yScale = d3.scale.linear(),
+
+            //change line interpolation as required
+            line = d3.svg.line().interpolate('basis').x(X).y(Y);
+
+        function chart(selection) {
+            ///<summary>Modify this function to implement the chart</summary>
+            selection.each(function (data) {
+                // Convert data to standard representation greedily
+                // this is needed for nondeterministic accessors.
+                data = data.map(function (d, i) {
+                    return [xValue.call(data, d, i), yValue.call(data, d, i)];
+                });
+
+                // Update the x-scale.
+                xScale
+                    .domain(d3.extent(data, function (d) { return d[0]; }))
+                    .range([0, width - margin.left - margin.right]);
+
+                // Update the y-scale.
+                yScale
+                    .domain(d3.extent(data, function (d) { return d[1]; }))
+                    .range([height - margin.top - margin.bottom, 0]);
+
+                // Select the svg element, if it exists.
+                var svg = d3.select(this).selectAll('svg').data([data]);
+
+                // Otherwise, create the skeletal chart.
+                var gEnter = svg.enter().append('svg').append('g');
+                gEnter.append('path').attr('d', line(data)).attr('class', 'sparkline');
+
+                //update outer dimensions
+                gEnter.attr({
+                    'width': width,
+                    'height': height
+                });
+
+                //update inner dimensions
+                var g = svg.select('g')
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                //add a circle at the end
+                g.append('circle')
+                    .attr({
+                        'class': 'sparkcircle',
+                        'cx': xScale(data[0][0]),
+                        'cy': yScale(data[0][1]),
+                        'r': 1.5
+                    });
+            });
+        }
+
+        /* following are data accessor functions */
+
+        function X(d) {
+            ///<summary>The x-accessor for the path generator; xValue thorugh xScale.</summary>
+            return xScale(d[0]);
+        }
+
+        function Y(d) {
+            ///<summary>The y-accessor for the path generator; yValue through yScale.</summary>
+            return yScale(d[1]);
+        }
+
+        chart.margin = function (_) {
+            ///<summary>Margin for the chart. If not passed in, default will be considered
+            /// it takes an object as input. Sample: { top: 2, right: 1, bottom: 2, left: 1 }
+            ///</summary>
+            if (!arguments.length) return margin;
+            margin = _;
+            return chart;
+        };
+
+        chart.width = function (_) {
+            ///<summary>width of the chart. If not passed in, default will be considered</summary>
+            if (!arguments.length) return width;
+            width = _;
+            return chart;
+        };
+
+        chart.height = function (_) {
+            ///<summary>height of the chart. If not passed in, default will be considered</summary>
+            if (!arguments.length) return height;
+            height = _;
+            return chart;
+        };
+
+        chart.x = function (_) {
+            ///<summary>setter for x axis value</summary>
+            if (!arguments.length) return xValue;
+            xValue = _;
+            return chart;
+        };
+
+        chart.y = function (_) {
+            ///<summary>setter for y axis value</summary>
+            if (!arguments.length) return yValue;
+            yValue = _;
+            return chart;
+        };
+
+        return chart;
+    }
+
+    /*helper functions*/
+    function IsEmptyOrWhiteSpace(stringVar) {
+        return IsUndefined(stringVar) || stringVar.toString().trim() == '';
+    }
+
+    function IsUndefined(checkVar) {
+        ///<summary>Checkes whether a variable is undefined</summary>
+        return checkVar == undefined;
+    };
+
+    function IsUndefinedOrWhitespace(stringVar) {
+        ///<summary>Checkes whether a string is not undefined and whte space</summary>
+        return IsUndefined(stringVar) || IsEmptyOrWhiteSpace(stringVar);
+    };
+
+    function getUtcDateFromJsonString(dateString) {
+        ///<summary>accepts a date string in the format "\/Date(1380674229880)\/" and returns UTC equivalent of the same</summary>
+
+        if (IsUndefinedOrWhitespace(dateString) || typeof dateString != 'string') return '';
+
+        //utc conversion logic picked from here: http://stackoverflow.com/questions/948532/how-do-you-convert-a-javascript-date-to-utc
+        return new Date(new Date(parseInt(dateString.replace("/Date(", "").replace(")/", ""), 10)).toUTCString().substr(0, 25));
+    }
+</script>

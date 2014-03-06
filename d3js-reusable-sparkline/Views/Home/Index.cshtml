@@ -112,13 +112,14 @@
             yScale = d3.scale.linear(),
 
             //change line interpolation as required
-            line = d3.svg.line().interpolate('basis').x(X).y(Y);
+            line = d3.svg.line().defined(function (d) { return d[1] != null; }).interpolate('basis').x(X).y(Y);
 
         function chart(selection) {
             ///<summary>Modify this function to implement the chart</summary>
             selection.each(function (data) {
                 // Convert data to standard representation greedily
                 // this is needed for nondeterministic accessors.
+
                 data = data.map(function (d, i) {
                     return [xValue.call(data, d, i), yValue.call(data, d, i)];
                 });
